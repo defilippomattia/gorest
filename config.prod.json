@@ -1,0 +1,10 @@
+{
+    "log_level": "info",
+    "database": {
+        "host": "localhost",
+        "port": "27017",
+        "name": "mydb",
+        "username": "myuser",
+        "password": "mypassword"
+    }
+}
