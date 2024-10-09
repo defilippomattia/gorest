@@ -11,6 +11,8 @@ go get github.com/rs/zerolog/log
 go get github.com/go-chi/chi/v5
 go get github.com/danielgtaylor/huma/v2
 go get github.com/jackc/pgx/v5
+go get golang.org/x/crypto/argon2
+
 go run main.go /path/to/config.json
 
 ```
@@ -34,6 +36,13 @@ API docs on http://127.0.0.1:<port>/docs
 
 A demo table is created to show the API functionality. 
 ```sql
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL
+);
+
 CREATE TABLE employees (
     id SERIAL PRIMARY KEY,                
     first_name VARCHAR(100) NOT NULL,     

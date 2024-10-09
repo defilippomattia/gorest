@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -14,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/crypto/argon2"
 )
 
 type Config struct {
@@ -26,6 +30,21 @@ type Config struct {
 		Username string `json:"username" validate:"required"`
 		Password string `json:"password" validate:"required"`
 	} `json:"database"`
+}
+
+type User struct {
+	Id       int    `json:"id"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type UserResponse struct {
+	Id       int    `json:"id"`
+	Username string `json:"username"`
+}
+
+type UserOutput struct {
+	Body UserResponse `json:"body"`
 }
 
 type Employee struct {
@@ -63,6 +82,27 @@ func printConfig(config Config) {
 		Str("database.username", config.Database.Username).
 		Str("database.password", "************").
 		Msg("")
+}
+
+func hashPassword(plainPassword string) (hashedPassword string, err error) {
+
+	memory := uint32(64 * 1024)
+	iterations := uint32(3)
+	parallelism := uint8(2)
+	saltLength := uint32(16)
+	keyLength := uint32(32)
+	salt := make([]byte, saltLength)
+	// fmt.Printf("salt1: %v\n", salt)
+	rand.Read(salt)
+	// fmt.Printf("salt2: %v\n", salt)
+	hashBytes := argon2.IDKey([]byte(plainPassword), salt, iterations, memory, parallelism, keyLength)
+	// fmt.Printf("hashBytes: %v\n)", hashBytes)
+	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
+	b64Hash := base64.RawStdEncoding.EncodeToString(hashBytes)
+	hashedPassword = fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, memory, iterations, parallelism, b64Salt, b64Hash)
+	// fmt.Printf("hashedPassword: %v\n", hashedPassword)
+	return hashedPassword, nil
+
 }
 
 func main() {
@@ -225,6 +265,45 @@ func main() {
 			return nil, err
 		}
 		return nil, nil
+	})
+
+	huma.Post(api, "/api/users", func(ctx context.Context, input *struct {
+		Body struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		} `json:"body"`
+	}) (*UserOutput, error) {
+		// var username string
+		hashedPassword, err := hashPassword(input.Body.Password)
+		if err != nil {
+			log.Error().Err(err).Msg("error hashing password")
+			return nil, err
+		}
+
+		var userId int
+
+		err = conn.QueryRow(context.Background(),
+			"INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id",
+			input.Body.Username, hashedPassword).Scan(&userId)
+		if err != nil {
+			log.Error().Err(err).Msg("error inserting new employee")
+			return nil, err
+		}
+		row := conn.QueryRow(context.Background(),
+			"SELECT id,username,password FROM users WHERE id = $1", userId)
+		var user User
+		err = row.Scan(&user.Id, &user.Username, &user.Password)
+		if err != nil {
+			log.Error().Err(err).Msg("error fetching newly created user")
+			return nil, err
+		}
+		resp := &UserOutput{
+			Body: UserResponse{
+				Id:       userId,
+				Username: input.Body.Username,
+			},
+		}
+		return resp, nil
 	})
 
 	apiEndpoint := "127.0.0.1:" + config.APIPort
