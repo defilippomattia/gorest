@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -25,6 +26,25 @@ type Config struct {
 		Username string `json:"username" validate:"required"`
 		Password string `json:"password" validate:"required"`
 	} `json:"database"`
+}
+
+type Employee struct {
+	ID        int       `json:"id"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
+	Email     string    `json:"email"`
+	Age       int       `json:"age"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type EmployeesOutput struct {
+	Body struct {
+		Employees []Employee `json:"employees"`
+	}
+}
+
+type EmployeeOutput struct {
+	Body Employee `json:"body"`
 }
 
 type HealthCheckOutput struct {
@@ -113,6 +133,98 @@ func main() {
 		resp := &HealthCheckOutput{}
 		resp.Body.Message = "OK"
 		return resp, nil
+	})
+
+	huma.Get(api, "/api/employees", func(ctx context.Context, input *struct {
+	}) (*EmployeesOutput, error) {
+		log.Info().
+			Str("event", "get.employees").
+			Msg("getting all employees started")
+		rows, err := conn.Query(context.Background(), "SELECT id, first_name, last_name, email, age, created_at FROM employees")
+		if err != nil {
+			log.Error().
+				Str("event", "get.employees").
+				Err(err).Msg("error fetching employees")
+			return nil, err
+		}
+		defer rows.Close()
+		var employees []Employee
+		for rows.Next() {
+			var employee Employee
+			err = rows.Scan(&employee.ID, &employee.FirstName, &employee.LastName, &employee.Email, &employee.Age, &employee.CreatedAt)
+			if err != nil {
+				log.Error().Err(err).Msg("error scanning employee")
+				return nil, err
+			}
+			employees = append(employees, employee)
+		}
+		resp := &EmployeesOutput{}
+		resp.Body.Employees = employees
+		return resp, nil
+	})
+
+	huma.Get(api, "/api/employees/{id}", func(ctx context.Context, input *struct {
+		ID int `path:"id"`
+	}) (*EmployeeOutput, error) {
+		row := conn.QueryRow(context.Background(), "SELECT id, first_name, last_name, email, age, created_at FROM employees WHERE id = $1", input.ID)
+
+		var employee Employee
+		err := row.Scan(&employee.ID, &employee.FirstName, &employee.LastName, &employee.Email, &employee.Age, &employee.CreatedAt)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				log.Error().Err(err).Msg("employee not found")
+				return nil, err
+			}
+			log.Error().Err(err).Msg("error fetching employee")
+			return nil, err
+		}
+
+		resp := &EmployeeOutput{
+			Body: employee,
+		}
+		return resp, nil
+	})
+
+	huma.Post(api, "/api/employees", func(ctx context.Context, input *struct {
+		Body struct {
+			FirstName string `json:"first_name"`
+			LastName  string `json:"last_name"`
+			Email     string `json:"email"`
+			Age       int    `json:"age"`
+		} `json:"body"`
+	}) (*EmployeeOutput, error) {
+		var employeeID int
+		err := conn.QueryRow(context.Background(),
+			"INSERT INTO employees (first_name, last_name, email, age) VALUES ($1, $2, $3, $4) RETURNING id",
+			input.Body.FirstName, input.Body.LastName, input.Body.Email, input.Body.Age).Scan(&employeeID)
+
+		if err != nil {
+			log.Error().Err(err).Msg("error inserting new employee")
+			return nil, err
+		}
+		row := conn.QueryRow(context.Background(),
+			"SELECT id, first_name, last_name, email, age, created_at FROM employees WHERE id = $1", employeeID)
+		var employee Employee
+		err = row.Scan(&employee.ID, &employee.FirstName, &employee.LastName, &employee.Email, &employee.Age, &employee.CreatedAt)
+		if err != nil {
+			log.Error().Err(err).Msg("error fetching newly created employee")
+			return nil, err
+		}
+		resp := &EmployeeOutput{
+			Body: employee,
+		}
+		return resp, nil
+	})
+
+	huma.Delete(api, "/api/employees/{id}", func(ctx context.Context, input *struct {
+		ID int `path:"id"`
+	}) (*struct{}, error) {
+		_, err := conn.Exec(context.Background(), "DELETE FROM employees WHERE id = $1", input.ID)
+		if err != nil {
+			log.Error().Err(err).Msg("error deleting employee")
+			return nil, err
+		}
+		return nil, nil
 	})
 
 	apiEndpoint := "127.0.0.1:" + config.APIPort

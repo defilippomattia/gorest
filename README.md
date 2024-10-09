@@ -25,8 +25,37 @@ API docs on http://127.0.0.1:<port>/docs
 - [] Encrypted config values
 - [x] Structured logs
 - [] REST API
-- [] DB connection
+- [x] DB connection
 - [] Dockerfile
 - [] REST API docs
 - [] Dynamic log level change
 
+# DB
+
+A demo table is created to show the API functionality. 
+```sql
+CREATE TABLE employees (
+    id SERIAL PRIMARY KEY,                
+    first_name VARCHAR(100) NOT NULL,     
+    last_name VARCHAR(100) NOT NULL,      
+    email VARCHAR(255) NOT NULL UNIQUE,   
+    age INT,             
+    created_at TIMESTAMP DEFAULT NOW()    
+);
+
+INSERT INTO employees (first_name, last_name, email, age)
+VALUES ('John', 'Doe', 'john.doe@example.com', 30);
+
+INSERT INTO employees (first_name, last_name, email, age)
+VALUES ('Jane', 'Smith', 'jane.smith@example.com', 25);
+
+INSERT INTO employees (first_name, last_name, email, age)
+VALUES ('Alice', 'Johnson', 'alice.johnson@example.com', 40);
+
+INSERT INTO employees (first_name, last_name, email, age)
+VALUES ('Bob', 'Williams', 'bob.williams@example.com', 35);
+
+INSERT INTO employees (first_name, last_name, email, age)
+VALUES ('Charlie', 'Brown', 'charlie.brown@example.com', 28);
+
+```
