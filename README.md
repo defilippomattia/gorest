@@ -5,7 +5,6 @@ Template for a REST API in Go. Currently everything is in the main.go file, but 
 ## Project start
 
 ```
-go mod init github.com/defilippomattia/gorest
 go get github.com/go-playground/validator/v10
 go get github.com/rs/zerolog/log
 go get github.com/go-chi/chi/v5
@@ -14,8 +13,6 @@ go get github.com/jackc/pgx/v5
 go get golang.org/x/crypto/argon2
 
 go run main.go /path/to/config.json
-
-```
 
 API docs on http://127.0.0.1:<port>/docs
 
@@ -30,7 +27,12 @@ API docs on http://127.0.0.1:<port>/docs
 - [x] DB connection
 - [] Dockerfile
 - [] REST API docs
-- [] Dynamic log level change
+- [] Dynamic log level change (maybe whole config reload?)
+- [] Tests
+- [] CI/CD
+- [] Pagination
+- [] Folder structure
+- [] DB connection retry logic
 
 # DB
 
