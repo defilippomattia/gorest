@@ -14,6 +14,7 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -70,6 +71,14 @@ type HealthCheckOutput struct {
 	Body struct {
 		Message string `json:"message" example:"OK" doc:"Health status"`
 	}
+}
+
+type LoginOutput struct {
+	Body struct {
+		Token    string `json:"token"`
+		UserID   int    `json:"user_id"`
+		Username string `json:"username"`
+	} `json:"body"`
 }
 
 func printConfig(config Config) {
@@ -303,6 +312,50 @@ func main() {
 				Username: input.Body.Username,
 			},
 		}
+		return resp, nil
+	})
+
+	huma.Post(api, "/api/auth/login", func(ctx context.Context, input *struct {
+		Body struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		} `json:"body"`
+	}) (*LoginOutput, error) {
+		hashedPassword, err := hashPassword(input.Body.Password)
+		if err != nil {
+			log.Error().Err(err).Msg("error hashing password")
+			return nil, err
+		}
+		fmt.Printf("hashedPassword: %v\n", hashedPassword)
+
+		var user User
+		err = conn.QueryRow(context.Background(),
+			"SELECT id, username, password FROM users WHERE username = $1", input.Body.Username).Scan(&user.Id, &user.Username, &user.Password)
+		if err != nil {
+			log.Error().Err(err).Msg("error fetching user")
+			return nil, err
+		}
+		//todo: compare hashedPassword with user.Password
+		token := uuid.New().String()
+		_, err = conn.Exec(context.Background(),
+			"INSERT INTO sessions (token, user_id) VALUES ($1, $2)", token, user.Id)
+		if err != nil {
+			log.Error().Err(err).Msg("error inserting new session")
+			return nil, err
+		}
+
+		resp := &LoginOutput{
+			Body: struct {
+				Token    string `json:"token"`
+				UserID   int    `json:"user_id"`
+				Username string `json:"username"`
+			}{
+				Token:    token,
+				UserID:   user.Id,
+				Username: user.Username,
+			},
+		}
+
 		return resp, nil
 	})
 

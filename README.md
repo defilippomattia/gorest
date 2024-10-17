@@ -11,6 +11,8 @@ go get github.com/go-chi/chi/v5
 go get github.com/danielgtaylor/huma/v2
 go get github.com/jackc/pgx/v5
 go get golang.org/x/crypto/argon2
+go get github.com/google/uuid
+
 
 go run main.go /path/to/config.json
 
@@ -52,6 +54,14 @@ CREATE TABLE employees (
     email VARCHAR(255) NOT NULL UNIQUE,   
     age INT,             
     created_at TIMESTAMP DEFAULT NOW()    
+);
+
+CREATE TABLE sessions (
+    token CHAR(36) PRIMARY KEY NOT NULL,
+    user_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    last_used TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
 INSERT INTO employees (first_name, last_name, email, age)
