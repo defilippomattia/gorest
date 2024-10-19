@@ -12,9 +12,9 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	"github.com/defilippomattia/gorest/auth"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -74,7 +74,8 @@ type HealthCheckOutput struct {
 }
 
 type LoginOutput struct {
-	Body struct {
+	SetCookie http.Cookie `header:"Set-Cookie"`
+	Body      struct {
 		Token    string `json:"token"`
 		UserID   int    `json:"user_id"`
 		Username string `json:"username"`
@@ -184,8 +185,13 @@ func main() {
 		return resp, nil
 	})
 
-	huma.Get(api, "/api/employees", func(ctx context.Context, input *struct {
-	}) (*EmployeesOutput, error) {
+	type EmployeesInput struct {
+		Session http.Cookie `cookie:"session_token"` // Use the correct cookie name here
+	}
+
+	huma.Get(api, "/api/employees", func(ctx context.Context, input *EmployeesInput) (*EmployeesOutput, error) {
+		fmt.Printf("session token: %v\n", input.Session.Value)
+
 		log.Info().
 			Str("event", "get.employees").
 			Msg("getting all employees started")
@@ -336,15 +342,25 @@ func main() {
 			return nil, err
 		}
 		//todo: compare hashedPassword with user.Password
-		token := uuid.New().String()
+		token := auth.GenerateSessionToken()
+		currentTimestamp := time.Now()
 		_, err = conn.Exec(context.Background(),
-			"INSERT INTO sessions (token, user_id) VALUES ($1, $2)", token, user.Id)
+			"INSERT INTO sessions (token, user_id, created_at, last_used) VALUES ($1, $2, $3, $4)", token, user.Id, currentTimestamp, currentTimestamp)
 		if err != nil {
 			log.Error().Err(err).Msg("error inserting new session")
 			return nil, err
 		}
 
+		expiresAt := currentTimestamp.Add(1 * time.Minute)
 		resp := &LoginOutput{
+			SetCookie: http.Cookie{
+				Name:     "session_token",
+				Value:    token,
+				Expires:  expiresAt,
+				Path:     "/",
+				HttpOnly: true,
+				Secure:   false,
+			},
 			Body: struct {
 				Token    string `json:"token"`
 				UserID   int    `json:"user_id"`
