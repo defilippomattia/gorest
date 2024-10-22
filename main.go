@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,12 +11,13 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/defilippomattia/gorest/auth"
+	"github.com/defilippomattia/gorest/employees"
+	"github.com/defilippomattia/gorest/healthz"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"golang.org/x/crypto/argon2"
 )
 
 type Config struct {
@@ -47,32 +46,11 @@ type UserResponse struct {
 type UserOutput struct {
 	Body UserResponse `json:"body"`
 }
-
-type Employee struct {
-	ID        int       `json:"id"`
-	FirstName string    `json:"first_name"`
-	LastName  string    `json:"last_name"`
-	Email     string    `json:"email"`
-	Age       int       `json:"age"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-type EmployeesOutput struct {
-	Body struct {
-		Employees []Employee `json:"employees"`
-	}
-}
-
-type EmployeeOutput struct {
-	Body Employee `json:"body"`
-}
-
 type HealthCheckOutput struct {
 	Body struct {
 		Message string `json:"message" example:"OK" doc:"Health status"`
 	}
 }
-
 type LoginOutput struct {
 	SetCookie http.Cookie `header:"Set-Cookie"`
 	Body      struct {
@@ -92,27 +70,6 @@ func printConfig(config Config) {
 		Str("database.username", config.Database.Username).
 		Str("database.password", "************").
 		Msg("")
-}
-
-func hashPassword(plainPassword string) (hashedPassword string, err error) {
-
-	memory := uint32(64 * 1024)
-	iterations := uint32(3)
-	parallelism := uint8(2)
-	saltLength := uint32(16)
-	keyLength := uint32(32)
-	salt := make([]byte, saltLength)
-	// fmt.Printf("salt1: %v\n", salt)
-	rand.Read(salt)
-	// fmt.Printf("salt2: %v\n", salt)
-	hashBytes := argon2.IDKey([]byte(plainPassword), salt, iterations, memory, parallelism, keyLength)
-	// fmt.Printf("hashBytes: %v\n)", hashBytes)
-	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
-	b64Hash := base64.RawStdEncoding.EncodeToString(hashBytes)
-	hashedPassword = fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, memory, iterations, parallelism, b64Salt, b64Hash)
-	// fmt.Printf("hashedPassword: %v\n", hashedPassword)
-	return hashedPassword, nil
-
 }
 
 func main() {
@@ -167,7 +124,6 @@ func main() {
 	zerolog.SetGlobalLevel(logLevel)
 
 	dbConnURL := "postgres://" + config.Database.Username + ":" + config.Database.Password + "@" + config.Database.Host + ":" + config.Database.Port + "/" + config.Database.Name
-	//"postgres://username:password@localhost:5432/database_name"
 	conn, err := pgx.Connect(context.Background(), dbConnURL)
 	if err != nil {
 		log.Error().Err(err).Msg("unable to connect to database, exiting application...")
@@ -175,112 +131,14 @@ func main() {
 	}
 	log.Info().Msg("connected to database successfully")
 	defer conn.Close(context.Background())
-	router := chi.NewMux()
+	router := chi.NewRouter()
 	api := humachi.New(router, huma.DefaultConfig("gorest API", "1.0.0"))
 
-	huma.Get(api, "/api/healthz", func(ctx context.Context, input *struct {
-	}) (*HealthCheckOutput, error) {
-		resp := &HealthCheckOutput{}
-		resp.Body.Message = "OK"
-		return resp, nil
-	})
+	huma.Get(api, "/api/healthz", healthz.GetHealth)
 
-	type EmployeesInput struct {
-		Session http.Cookie `cookie:"session_token"` // Use the correct cookie name here
-	}
-
-	huma.Get(api, "/api/employees", func(ctx context.Context, input *EmployeesInput) (*EmployeesOutput, error) {
-		fmt.Printf("session token: %v\n", input.Session.Value)
-
-		log.Info().
-			Str("event", "get.employees").
-			Msg("getting all employees started")
-		rows, err := conn.Query(context.Background(), "SELECT id, first_name, last_name, email, age, created_at FROM employees")
-		if err != nil {
-			log.Error().
-				Str("event", "get.employees").
-				Err(err).Msg("error fetching employees")
-			return nil, err
-		}
-		defer rows.Close()
-		var employees []Employee
-		for rows.Next() {
-			var employee Employee
-			err = rows.Scan(&employee.ID, &employee.FirstName, &employee.LastName, &employee.Email, &employee.Age, &employee.CreatedAt)
-			if err != nil {
-				log.Error().Err(err).Msg("error scanning employee")
-				return nil, err
-			}
-			employees = append(employees, employee)
-		}
-		resp := &EmployeesOutput{}
-		resp.Body.Employees = employees
-		return resp, nil
-	})
-
-	huma.Get(api, "/api/employees/{id}", func(ctx context.Context, input *struct {
-		ID int `path:"id"`
-	}) (*EmployeeOutput, error) {
-		row := conn.QueryRow(context.Background(), "SELECT id, first_name, last_name, email, age, created_at FROM employees WHERE id = $1", input.ID)
-
-		var employee Employee
-		err := row.Scan(&employee.ID, &employee.FirstName, &employee.LastName, &employee.Email, &employee.Age, &employee.CreatedAt)
-		if err != nil {
-			if err == pgx.ErrNoRows {
-				log.Error().Err(err).Msg("employee not found")
-				return nil, err
-			}
-			log.Error().Err(err).Msg("error fetching employee")
-			return nil, err
-		}
-
-		resp := &EmployeeOutput{
-			Body: employee,
-		}
-		return resp, nil
-	})
-
-	huma.Post(api, "/api/employees", func(ctx context.Context, input *struct {
-		Body struct {
-			FirstName string `json:"first_name"`
-			LastName  string `json:"last_name"`
-			Email     string `json:"email"`
-			Age       int    `json:"age"`
-		} `json:"body"`
-	}) (*EmployeeOutput, error) {
-		var employeeID int
-		err := conn.QueryRow(context.Background(),
-			"INSERT INTO employees (first_name, last_name, email, age) VALUES ($1, $2, $3, $4) RETURNING id",
-			input.Body.FirstName, input.Body.LastName, input.Body.Email, input.Body.Age).Scan(&employeeID)
-
-		if err != nil {
-			log.Error().Err(err).Msg("error inserting new employee")
-			return nil, err
-		}
-		row := conn.QueryRow(context.Background(),
-			"SELECT id, first_name, last_name, email, age, created_at FROM employees WHERE id = $1", employeeID)
-		var employee Employee
-		err = row.Scan(&employee.ID, &employee.FirstName, &employee.LastName, &employee.Email, &employee.Age, &employee.CreatedAt)
-		if err != nil {
-			log.Error().Err(err).Msg("error fetching newly created employee")
-			return nil, err
-		}
-		resp := &EmployeeOutput{
-			Body: employee,
-		}
-		return resp, nil
-	})
-
-	huma.Delete(api, "/api/employees/{id}", func(ctx context.Context, input *struct {
-		ID int `path:"id"`
-	}) (*struct{}, error) {
-		_, err := conn.Exec(context.Background(), "DELETE FROM employees WHERE id = $1", input.ID)
-		if err != nil {
-			log.Error().Err(err).Msg("error deleting employee")
-			return nil, err
-		}
-		return nil, nil
-	})
+	huma.Get(api, "/api/employees", employees.GetEmployees(conn))
+	huma.Get(api, "/api/employees/{id}", employees.GetEmployeeById(conn))
+	huma.Post(api, "/api/employees", employees.CreateEmployee(conn))
 
 	huma.Post(api, "/api/users", func(ctx context.Context, input *struct {
 		Body struct {
@@ -289,14 +147,12 @@ func main() {
 		} `json:"body"`
 	}) (*UserOutput, error) {
 		// var username string
-		hashedPassword, err := hashPassword(input.Body.Password)
+		hashedPassword, err := auth.HashPassword(input.Body.Password)
 		if err != nil {
 			log.Error().Err(err).Msg("error hashing password")
 			return nil, err
 		}
-
 		var userId int
-
 		err = conn.QueryRow(context.Background(),
 			"INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id",
 			input.Body.Username, hashedPassword).Scan(&userId)
@@ -327,7 +183,7 @@ func main() {
 			Password string `json:"password"`
 		} `json:"body"`
 	}) (*LoginOutput, error) {
-		hashedPassword, err := hashPassword(input.Body.Password)
+		hashedPassword, err := auth.HashPassword(input.Body.Password)
 		if err != nil {
 			log.Error().Err(err).Msg("error hashing password")
 			return nil, err
