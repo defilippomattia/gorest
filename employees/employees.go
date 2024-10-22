@@ -10,10 +10,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type EmployeesInput struct {
-	Session http.Cookie `cookie:"session_token"` // Use the correct cookie name here
-}
-
 type Employee struct {
 	ID        int       `json:"id"`
 	FirstName string    `json:"first_name"`
@@ -21,6 +17,17 @@ type Employee struct {
 	Email     string    `json:"email"`
 	Age       int       `json:"age"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type EmployeeInput struct {
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email"`
+	Age       int    `json:"age"`
+}
+
+type EmployeesInput struct {
+	Session http.Cookie `cookie:"session_token"` // Use the correct cookie name here
 }
 
 type EmployeesOutput struct {
@@ -93,31 +100,18 @@ func GetEmployeeById(conn *pgx.Conn) func(ctx context.Context, input *struct {
 	}
 }
 
-func CreateEmployee(conn *pgx.Conn) func(ctx context.Context, input *struct {
-	Body struct {
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
-		Email     string `json:"email"`
-		Age       int    `json:"age"`
-	} `json:"body"`
-}) (*EmployeeOutput, error) {
-	return func(ctx context.Context, input *struct {
-		Body struct {
-			FirstName string `json:"first_name"`
-			LastName  string `json:"last_name"`
-			Email     string `json:"email"`
-			Age       int    `json:"age"`
-		} `json:"body"`
-	}) (*EmployeeOutput, error) {
+func CreateEmployee(conn *pgx.Conn) func(ctx context.Context, input *EmployeeInput) (*EmployeeOutput, error) {
+	return func(ctx context.Context, input *EmployeeInput) (*EmployeeOutput, error) {
 		var employeeID int
 		err := conn.QueryRow(context.Background(),
 			"INSERT INTO employees (first_name, last_name, email, age) VALUES ($1, $2, $3, $4) RETURNING id",
-			input.Body.FirstName, input.Body.LastName, input.Body.Email, input.Body.Age).Scan(&employeeID)
+			input.FirstName, input.LastName, input.Email, input.Age).Scan(&employeeID)
 
 		if err != nil {
 			log.Error().Err(err).Msg("error inserting new employee")
 			return nil, err
 		}
+
 		row := conn.QueryRow(context.Background(),
 			"SELECT id, first_name, last_name, email, age, created_at FROM employees WHERE id = $1", employeeID)
 		var employee Employee
@@ -126,6 +120,7 @@ func CreateEmployee(conn *pgx.Conn) func(ctx context.Context, input *struct {
 			log.Error().Err(err).Msg("error fetching newly created employee")
 			return nil, err
 		}
+
 		resp := &EmployeeOutput{
 			Body: employee,
 		}
