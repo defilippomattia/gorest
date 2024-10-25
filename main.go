@@ -8,6 +8,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	"github.com/defilippomattia/gorest/apis"
+	"github.com/defilippomattia/gorest/apis/books"
 	"github.com/defilippomattia/gorest/auth"
 	"github.com/defilippomattia/gorest/employees"
 	"github.com/defilippomattia/gorest/healthz"
@@ -112,6 +114,14 @@ func main() {
 
 	huma.Post(api, "/api/users/register", auth.Register(conn))
 	huma.Post(api, "/api/users/login", auth.Login(conn))
+
+	sd := &apis.ServerDeps{
+		Conn:      conn,
+		Something: "something",
+	}
+
+	router.Get("/api/books", books.GetBooks(sd))
+	//router.Get("/api/books/{id}", books.GetBookByID(sd))
 
 	apiEndpoint := "127.0.0.1:" + config.APIPort
 
