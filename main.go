@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"net/http"
 	"os"
 
@@ -13,10 +12,10 @@ import (
 	"github.com/defilippomattia/gorest/apis/users"
 	"github.com/defilippomattia/gorest/auth"
 	"github.com/defilippomattia/gorest/config"
+	"github.com/defilippomattia/gorest/database"
 	"github.com/defilippomattia/gorest/employees"
 	"github.com/defilippomattia/gorest/healthz"
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -32,7 +31,6 @@ func main() {
 		os.Exit(1)
 	}
 	configFilePath := os.Args[1]
-
 	cfg, err := config.ReadConfig(configFilePath)
 	if err != nil {
 		log.Info().Msg("exiting application...")
@@ -48,14 +46,15 @@ func main() {
 	zerolog.SetGlobalLevel(logLevel)
 
 	dbConnURL := "postgres://" + cfg.Database.Username + ":" + cfg.Database.Password + "@" + cfg.Database.Host + ":" + cfg.Database.Port + "/" + cfg.Database.Name
-	conn, err := pgxpool.New(context.Background(), dbConnURL)
+	conn, err := database.ConnectToDatabase(dbConnURL)
+	//todo: check for errors in the package
+	defer conn.Close()
 
 	if err != nil {
-		log.Error().Err(err).Msg("unable to connect to database, exiting application...")
+		log.Error().Msg("exiting application...")
 		os.Exit(1)
 	}
 	log.Info().Msg("connected to database successfully")
-	defer conn.Close()
 	router := chi.NewRouter()
 	api := humachi.New(router, huma.DefaultConfig("gorest API", "1.0.0"))
 
