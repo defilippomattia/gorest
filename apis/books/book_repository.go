@@ -3,11 +3,11 @@ package books
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
 
-func fetchBooks(conn *pgx.Conn) ([]Book, error) {
+func fetchBooks(conn *pgxpool.Pool) ([]Book, error) {
 	books := []Book{}
 	log.Info().Msg("fetchBooks called")
 	query := "SELECT id, title, author FROM books"

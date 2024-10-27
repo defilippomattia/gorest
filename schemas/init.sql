@@ -50,3 +50,18 @@ INSERT INTO books (id, title, author) VALUES
 (3, 'Pride and Prejudice', 'Jane Austen'),
 (4, 'The Great Gatsby', 'F. Scott Fitzgerald'),
 (5, 'Moby Dick', 'Herman Melville');
+
+
+CREATE TABLE companies (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    year_founded INT
+);
+
+
+INSERT INTO companies (name, year_founded) VALUES 
+    ('Tech Innovators Inc', 2010),
+    ('Green Solutions LLC', 2015),
+    ('CloudSync Ltd', 2012),
+    ('DataWorks Corp', 2008),
+    ('NextGen Software', 2020);

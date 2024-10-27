@@ -9,12 +9,14 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/defilippomattia/gorest/apis"
 	"github.com/defilippomattia/gorest/apis/books"
+	"github.com/defilippomattia/gorest/apis/companies"
+	"github.com/defilippomattia/gorest/apis/users"
 	"github.com/defilippomattia/gorest/auth"
 	"github.com/defilippomattia/gorest/config"
 	"github.com/defilippomattia/gorest/employees"
 	"github.com/defilippomattia/gorest/healthz"
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -46,13 +48,14 @@ func main() {
 	zerolog.SetGlobalLevel(logLevel)
 
 	dbConnURL := "postgres://" + cfg.Database.Username + ":" + cfg.Database.Password + "@" + cfg.Database.Host + ":" + cfg.Database.Port + "/" + cfg.Database.Name
-	conn, err := pgx.Connect(context.Background(), dbConnURL)
+	conn, err := pgxpool.New(context.Background(), dbConnURL)
+
 	if err != nil {
 		log.Error().Err(err).Msg("unable to connect to database, exiting application...")
 		os.Exit(1)
 	}
 	log.Info().Msg("connected to database successfully")
-	defer conn.Close(context.Background())
+	defer conn.Close()
 	router := chi.NewRouter()
 	api := humachi.New(router, huma.DefaultConfig("gorest API", "1.0.0"))
 
@@ -71,7 +74,15 @@ func main() {
 	}
 
 	router.Get("/api/books", books.GetBooks(sd))
-	//router.Get("/api/books/{id}", books.GetBookByID(sd))
+	router.Post("/api/users/register", users.Register(sd))
+
+	companyRepo := companies.NewPgCompanyRepository(conn)
+	companyHandler := companies.NewCompanyHandler(companyRepo)
+
+	router.Route("/api/companies", func(r chi.Router) {
+		r.Post("/", companyHandler.CreateCompany)
+		r.Get("/{id}", companyHandler.GetCompanyByID)
+	})
 
 	apiEndpoint := "127.0.0.1:" + cfg.APIPort
 

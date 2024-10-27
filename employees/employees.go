@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
 
@@ -40,7 +41,7 @@ type EmployeeOutput struct {
 	Body Employee `json:"body"`
 }
 
-func GetEmployees(conn *pgx.Conn) func(ctx context.Context, input *EmployeesInput) (*EmployeesOutput, error) {
+func GetEmployees(conn *pgxpool.Pool) func(ctx context.Context, input *EmployeesInput) (*EmployeesOutput, error) {
 	return func(ctx context.Context, input *EmployeesInput) (*EmployeesOutput, error) {
 		fmt.Printf("session token: %v\n", input.Session.Value)
 		log.Info().
@@ -70,7 +71,7 @@ func GetEmployees(conn *pgx.Conn) func(ctx context.Context, input *EmployeesInpu
 	}
 }
 
-func GetEmployeeById(conn *pgx.Conn) func(ctx context.Context, input *struct {
+func GetEmployeeById(conn *pgxpool.Pool) func(ctx context.Context, input *struct {
 	ID int `path:"id"`
 }) (*EmployeeOutput, error) {
 	return func(ctx context.Context, input *struct {
@@ -100,7 +101,7 @@ func GetEmployeeById(conn *pgx.Conn) func(ctx context.Context, input *struct {
 	}
 }
 
-func CreateEmployee(conn *pgx.Conn) func(ctx context.Context, input *EmployeeInput) (*EmployeeOutput, error) {
+func CreateEmployee(conn *pgxpool.Pool) func(ctx context.Context, input *EmployeeInput) (*EmployeeOutput, error) {
 	return func(ctx context.Context, input *EmployeeInput) (*EmployeeOutput, error) {
 		var employeeID int
 		err := conn.QueryRow(context.Background(),

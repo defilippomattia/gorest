@@ -6,8 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
 
@@ -35,7 +34,7 @@ type LoginOutput struct {
 	} `json:"body"`
 }
 
-func Register(conn *pgx.Conn) func(ctx context.Context, input *struct {
+func Register(conn *pgxpool.Pool) func(ctx context.Context, input *struct {
 	Body struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -79,7 +78,7 @@ func Register(conn *pgx.Conn) func(ctx context.Context, input *struct {
 	}
 }
 
-func Login(conn *pgx.Conn) func(ctx context.Context, input *struct {
+func Login(conn *pgxpool.Pool) func(ctx context.Context, input *struct {
 	Body struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
