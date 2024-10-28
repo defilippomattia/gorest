@@ -7,7 +7,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/defilippomattia/gorest/apis"
-	"github.com/defilippomattia/gorest/apis/books"
 	"github.com/defilippomattia/gorest/apis/companies"
 	"github.com/defilippomattia/gorest/apis/users"
 	"github.com/defilippomattia/gorest/auth"
@@ -71,14 +70,13 @@ func main() {
 		Something: "something",
 	}
 
-	router.Get("/api/books", books.GetBooks(sd))
 	router.Post("/api/users/register", users.Register(sd))
 
 	companyRepo := companies.NewPgCompanyRepository(conn)
 	companyHandler := companies.NewCompanyHandler(companyRepo)
 
 	router.Post("/api/companies", companyHandler.CreateCompany)
-	router.Get("api/companies", companyHandler.GetCompanies)
+	router.Get("/api/companies", companyHandler.GetCompanies)
 	router.Get("/api/companies/{id}", companyHandler.GetCompanyByID)
 
 	apiEndpoint := "127.0.0.1:" + cfg.APIPort

@@ -7,6 +7,8 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-playground/validator/v10"
+	"github.com/rs/zerolog/log"
 )
 
 type CompanyHandler struct {
@@ -36,16 +38,28 @@ func (h *CompanyHandler) GetCompanyByID(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *CompanyHandler) CreateCompany(w http.ResponseWriter, r *http.Request) {
-	var company Company
-	err := json.NewDecoder(r.Body).Decode(&company)
+	var companyReq CompanyRequest
+	err := json.NewDecoder(r.Body).Decode(&companyReq)
 	if err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		http.Error(w, "not json", http.StatusBadRequest)
 		return
 	}
-	//validatieon here
+
+	validate := validator.New()
+	if err := validate.Struct(companyReq); err != nil {
+		http.Error(w, "request not in valid format", http.StatusBadRequest)
+		log.Error().Err(err).Msg("request not in valid format")
+		return
+	}
+
+	company := Company{
+		Name:        companyReq.Name,
+		YearFounded: companyReq.YearFounded,
+	}
 
 	err = h.repo.Create(context.Background(), &company)
 	if err != nil {
+		log.Error().Err(err)
 		http.Error(w, "Failed to create company", http.StatusInternalServerError)
 		return
 	}
