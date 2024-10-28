@@ -54,3 +54,18 @@ func (h *CompanyHandler) CreateCompany(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(company)
 
 }
+
+func (h *CompanyHandler) GetCompanies(w http.ResponseWriter, r *http.Request) {
+	companies, err := h.repo.GetAll(context.Background())
+	if err != nil {
+		http.Error(w, "Failed to retrieve companies", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(companies); err != nil {
+		http.Error(w, "Failed to encode companies to JSON", http.StatusInternalServerError)
+		return
+	}
+}

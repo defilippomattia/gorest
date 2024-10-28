@@ -11,6 +11,7 @@ import (
 type CompanyRepository interface {
 	GetByID(ctx context.Context, id int) (*Company, error)
 	Create(ctx context.Context, company *Company) error
+	GetAll(ctx context.Context) ([]Company, error)
 }
 
 type PgCompanyRepository struct {
@@ -43,4 +44,28 @@ func (r *PgCompanyRepository) GetByID(ctx context.Context, id int) (*Company, er
 		return nil, fmt.Errorf("could not find company with id %d: %w", id, err)
 	}
 	return &company, nil
+}
+
+func (r *PgCompanyRepository) GetAll(ctx context.Context) ([]Company, error) {
+	var companies []Company
+	query := "SELECT id, name, year_founded FROM companies"
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve companies: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var company Company
+		if err := rows.Scan(&company.ID, &company.Name, &company.YearFounded); err != nil {
+			return nil, fmt.Errorf("could not scan company row: %w", err)
+		}
+		companies = append(companies, company)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error occurred during row iteration: %w", err)
+	}
+
+	return companies, nil
 }

@@ -47,13 +47,12 @@ func main() {
 
 	dbConnURL := "postgres://" + cfg.Database.Username + ":" + cfg.Database.Password + "@" + cfg.Database.Host + ":" + cfg.Database.Port + "/" + cfg.Database.Name
 	conn, err := database.ConnectToDatabase(dbConnURL)
-	//todo: check for errors in the package
-	defer conn.Close()
-
 	if err != nil {
 		log.Error().Msg("exiting application...")
 		os.Exit(1)
 	}
+	defer conn.Close()
+
 	log.Info().Msg("connected to database successfully")
 	router := chi.NewRouter()
 	api := humachi.New(router, huma.DefaultConfig("gorest API", "1.0.0"))
@@ -78,10 +77,9 @@ func main() {
 	companyRepo := companies.NewPgCompanyRepository(conn)
 	companyHandler := companies.NewCompanyHandler(companyRepo)
 
-	router.Route("/api/companies", func(r chi.Router) {
-		r.Post("/", companyHandler.CreateCompany)
-		r.Get("/{id}", companyHandler.GetCompanyByID)
-	})
+	router.Post("/api/companies", companyHandler.CreateCompany)
+	router.Get("api/companies", companyHandler.GetCompanies)
+	router.Get("/api/companies/{id}", companyHandler.GetCompanyByID)
 
 	apiEndpoint := "127.0.0.1:" + cfg.APIPort
 
