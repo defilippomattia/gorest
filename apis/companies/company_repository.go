@@ -27,7 +27,7 @@ func (r *PgCompanyRepository) Create(ctx context.Context, company *Company) erro
 		"name":        company.Name,
 		"yearFounded": company.YearFounded,
 	}
-	query := "INSERT INTO companies (name, year_founded) VALUES (@name, $yearFounded) RETURNING id"
+	query := "INSERT INTO companies (name, year_founded) VALUES (@name, @yearFounded) RETURNING id"
 	_, err := r.db.Exec(ctx, query, args)
 	if err != nil {
 		return fmt.Errorf("unable to insert row: %w", err)
