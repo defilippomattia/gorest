@@ -6,10 +6,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
-	"github.com/defilippomattia/gorest/apis"
 	"github.com/defilippomattia/gorest/apis/companies"
 	"github.com/defilippomattia/gorest/apis/users"
-	"github.com/defilippomattia/gorest/auth"
 	"github.com/defilippomattia/gorest/config"
 	"github.com/defilippomattia/gorest/database"
 	"github.com/defilippomattia/gorest/employees"
@@ -62,22 +60,17 @@ func main() {
 	huma.Get(api, "/api/employees/{id}", employees.GetEmployeeById(conn))
 	huma.Post(api, "/api/employees", employees.CreateEmployee(conn))
 
-	huma.Post(api, "/api/users/register", auth.Register(conn))
-	huma.Post(api, "/api/users/login", auth.Login(conn))
-
-	sd := &apis.ServerDeps{
-		Conn:      conn,
-		Something: "something",
-	}
-
-	router.Post("/api/users/register", users.Register(sd))
-
 	companyRepo := companies.NewPgCompanyRepository(conn)
 	companyHandler := companies.NewCompanyHandler(companyRepo)
 
 	router.Post("/api/companies", companyHandler.CreateCompany)
 	router.Get("/api/companies", companyHandler.GetCompanies)
 	router.Get("/api/companies/{id}", companyHandler.GetCompanyByID)
+
+	userRepo := users.NewPgUserRepository(conn)
+	userHandler := users.NewUserHandler(userRepo)
+
+	router.Post("/api/register", userHandler.RegisterUser)
 
 	apiEndpoint := "127.0.0.1:" + cfg.APIPort
 

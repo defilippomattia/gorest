@@ -1,0 +1,11 @@
+{
+    "api_port": "9521",
+    "log_level": "info",
+    "database": {
+        "host": "localhost",
+        "port": "6952",
+        "name": "my_database",
+        "username": "my_user",
+        "password": "my_password"
+    }
+}

@@ -1,47 +1,73 @@
 package users
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
-	"github.com/defilippomattia/gorest/apis"
 	"github.com/go-playground/validator/v10"
 	"github.com/rs/zerolog/log"
 )
 
-func Register(sd *apis.ServerDeps) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log.Info().Msg("Register called")
+type UserHandler struct {
+	repo UserRepository
+}
 
-		var userCreds UserCredentials
-		if err := json.NewDecoder(r.Body).Decode(&userCreds); err != nil {
-			http.Error(w, "invalid JSON format", http.StatusBadRequest)
-			log.Error().Err(err).Msg("failed to parse JSON body")
-			return
-		}
+func NewUserHandler(repo UserRepository) *UserHandler {
+	return &UserHandler{repo: repo}
+}
 
-		validate := validator.New()
-		if err := validate.Struct(userCreds); err != nil {
-			http.Error(w, "request not in valid format", http.StatusBadRequest)
-			log.Error().Err(err).Msg("request not in valid format")
-			return
-		}
+func (h *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
+	var usRegReq UserRegistrationRequest
 
-		uId, err := CreateUser(userCreds)
-		if err != nil {
-			http.Error(w, "error saving user", http.StatusInternalServerError)
-			log.Error().Err(err).Msg("failed to register user")
-		}
-		fmt.Println(uId)
-
-		// if err := CreateUser(userCreds); err != nil {
-		// 	http.Error(w, "error saving user", http.StatusInternalServerError)
-		// 	log.Error().Err(err).Msg("failed to save user to database")
-		// 	return
-		// }
-
-		log.Info().Msg("Register completed")
-
+	//todo: try to simplify (duplicate code for err handling)
+	err := json.NewDecoder(r.Body).Decode(&usRegReq)
+	if err != nil {
+		log.Error().Err(err).Msg("could not decode usRegReq")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(UserRegistrationErrorResponse{
+			ResponseType: "error",
+			Message:      "invalid request - username and password must be provided",
+		})
+		return
 	}
+
+	validate := validator.New()
+	err = validate.Struct(usRegReq)
+	if err != nil {
+		log.Error().Err(err).Msg("json body in request not valid")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(UserRegistrationErrorResponse{
+			ResponseType: "error",
+			Message:      "invalid request - username and password must be provided",
+		})
+		return
+	}
+
+	userId, err := h.repo.Register(context.Background(), &usRegReq)
+
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(UserRegistrationErrorResponse{
+			ResponseType: "error",
+			Message:      err.Error(),
+		})
+		return
+	}
+
+	log.Info().
+		Int("user_id", userId).
+		Msg("user registered successfully")
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(UserRegistrationSuccessResponse{
+		ResponseType: "success",
+		Message:      "user registered successfully",
+		UserID:       userId,
+	})
+
 }
