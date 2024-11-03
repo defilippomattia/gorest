@@ -70,7 +70,9 @@ func main() {
 	userRepo := users.NewPgUserRepository(conn)
 	userHandler := users.NewUserHandler(userRepo)
 
-	router.Post("/api/register", userHandler.RegisterUser)
+	router.Post("/api/users/register", userHandler.RegisterUser)
+	router.Post("/api/users/login", userHandler.LoginUser)
+	router.Get("/api/users/me", userHandler.GetMe)
 
 	apiEndpoint := "127.0.0.1:" + cfg.APIPort
 
